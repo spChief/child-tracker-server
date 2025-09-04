@@ -41,4 +41,13 @@ export class LocationService {
       .orderBy('location.timestamp', 'DESC')
       .getMany();
   }
+
+  async getLocationsForView(deviceId: string): Promise<Location[]> {
+    return await this.locationRepository
+      .createQueryBuilder('location')
+      .where('location.deviceId = :deviceId', { deviceId })
+      .orderBy('location.timestamp', 'ASC')
+      .limit(1000)
+      .getMany();
+  }
 }

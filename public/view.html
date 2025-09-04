@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Просмотр локаций устройства</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #app {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #e74c3c;
+            color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            font-size: 14px;
+            z-index: 2000;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <h1>Просмотр локаций устройства</h1>
+            <p v-if="deviceId">Устройство: {{ deviceId }}</p>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+
+            <div v-if="loading" class="loading">
+                <h3>Загрузка данных...</h3>
+                <p>Получение локаций для устройства {{ deviceId }}</p>
+            </div>
+
+            <div v-if="error" class="error">
+                <h3>Ошибка</h3>
+                <p>{{ error }}</p>
+                <button @click="loadData" style="margin-top: 1rem; padding: 0.5rem 1rem; background: white; color: #e74c3c; border: none; border-radius: 4px; cursor: pointer;">
+                    Попробовать снова
+                </button>
+            </div>
+
+            <div v-if="locations.length > 0" class="info">
+                <div><strong>Всего точек:</strong> {{ locations.length }}</div>
+                <div v-if="locations.length > 0">
+                    <strong>Первая точка:</strong> {{ formatDate(locations[0].timestamp) }}
+                </div>
+                <div v-if="locations.length > 1">
+                    <strong>Последняя точка:</strong> {{ formatDate(locations[locations.length - 1].timestamp) }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    deviceId: null,
+                    locations: [],
+                    loading: false,
+                    error: null,
+                    map: null,
+                    route: null,
+                    isFirstLoad: true,
+                    updateInterval: null
+                }
+            },
+            mounted() {
+                this.getDeviceIdFromUrl();
+                if (this.deviceId) {
+                    this.initMap();
+                    this.loadData();
+                    // Запускаем автоматическое обновление каждую секунду
+                    this.updateInterval = setInterval(() => {
+                        this.loadData();
+                    }, 1000);
+                } else {
+                    this.error = 'Не указан параметр deviceId в URL';
+                }
+            },
+            beforeUnmount() {
+                // Очищаем интервал при размонтировании компонента
+                if (this.updateInterval) {
+                    clearInterval(this.updateInterval);
+                }
+            },
+            methods: {
+                getDeviceIdFromUrl() {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    this.deviceId = urlParams.get('deviceId');
+                },
+
+                async loadData() {
+                    if (!this.deviceId) return;
+
+                    this.loading = true;
+                    this.error = null;
+
+                    try {
+                        const response = await fetch(`/view?deviceId=${this.deviceId}`);
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        const data = await response.json();
+                        this.locations = data.locations || [];
+
+                        if (this.locations.length === 0) {
+                            this.error = 'Для данного устройства не найдено локаций';
+                        } else {
+                            this.updateMap();
+                        }
+                    } catch (err) {
+                        this.error = `Ошибка загрузки данных: ${err.message}`;
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                initMap() {
+                    if (typeof L === 'undefined') {
+                        this.error = 'Leaflet не загружен. Проверьте подключение библиотеки.';
+                        return;
+                    }
+
+                    // Инициализируем карту
+                    this.map = L.map('map').setView([55.7558, 37.6176], 10); // Москва по умолчанию
+
+                    // Добавляем слой OpenStreetMap
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    }).addTo(this.map);
+                },
+
+                updateMap() {
+                    if (!this.map || this.locations.length === 0) return;
+
+                    // Очищаем карту (удаляем все слои кроме базового тайла)
+                    this.map.eachLayer((layer) => {
+                        if (layer !== this.map._layers[Object.keys(this.map._layers)[0]]) {
+                            this.map.removeLayer(layer);
+                        }
+                    });
+
+                    // Создаем массив координат для маршрута
+                    const coordinates = this.locations.map(loc => [parseFloat(loc.latitude), parseFloat(loc.longitude)]);
+
+                    // Создаем маршрут (линию)
+                    this.route = L.polyline(coordinates, {
+                        color: '#FF0000',
+                        weight: 3,
+                        opacity: 0.8
+                    }).addTo(this.map);
+
+                    // Добавляем маркеры для первой и последней точки
+                    if (coordinates.length > 0) {
+                        const firstPoint = L.marker(coordinates[0], {
+                            icon: L.divIcon({
+                                className: 'custom-marker',
+                                html: '<div style="background-color: green; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
+                                iconSize: [16, 16]
+                            })
+                        }).bindPopup(`Начальная точка<br/>Время: ${this.formatDate(this.locations[0].timestamp)}`);
+
+                        const lastPoint = L.marker(coordinates[coordinates.length - 1], {
+                            icon: L.divIcon({
+                                className: 'custom-marker',
+                                html: '<div style="background-color: red; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
+                                iconSize: [16, 16]
+                            })
+                        }).bindPopup(`Конечная точка<br/>Время: ${this.formatDate(this.locations[this.locations.length - 1].timestamp)}`);
+
+                        this.map.addLayer(firstPoint);
+                        this.map.addLayer(lastPoint);
+                    }
+
+                    // Устанавливаем границы карты только при первой загрузке
+                    if (this.route && this.isFirstLoad) {
+                        this.map.fitBounds(this.route.getBounds(), {
+                            padding: [20, 20]
+                        });
+                        this.isFirstLoad = false; // Сбрасываем флаг после первой загрузки
+                    }
+                },
+
+                formatDate(timestamp) {
+                    return new Date(parseInt(timestamp, 10)).toLocaleString('ru-RU');
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

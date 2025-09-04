@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # PostgreSQL база данных
+  postgres:
+    image: postgres:15-alpine
+    container_name: child-tracker-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: child_tracker
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - child-tracker-network
+
+  # NestJS приложение
+  app:
+    build: .
+    container_name: child-tracker-app
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: password
+      DB_DATABASE: child_tracker
+      PORT: 3000
+    ports:
+      - "3030:3000"
+    depends_on:
+      - postgres
+    networks:
+      - child-tracker-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:
+
+networks:
+  child-tracker-network:
+    driver: bridge

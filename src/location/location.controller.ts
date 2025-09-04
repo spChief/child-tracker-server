@@ -5,6 +5,9 @@ import {
   HttpCode,
   HttpStatus,
   ValidationPipe,
+  Get,
+  Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { LocationService } from './location.service';
 import { LocationDto } from '../dto/location.dto';
@@ -30,5 +33,15 @@ export class LocationController {
   ): Promise<{ success: boolean }> {
     await this.locationService.createLocationsBatch(batchDto.locations);
     return { success: true };
+  }
+
+  @Get('view')
+  async getViewData(@Query('deviceId') deviceId: string) {
+    if (!deviceId) {
+      throw new BadRequestException('deviceId parameter is required');
+    }
+
+    const locations = await this.locationService.getLocationsForView(deviceId);
+    return { locations };
   }
 }
