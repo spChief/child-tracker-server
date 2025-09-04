@@ -1,0 +1,34 @@
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  ValidationPipe,
+} from '@nestjs/common';
+import { LocationService } from './location.service';
+import { LocationDto } from '../dto/location.dto';
+import { LocationBatchDto } from '../dto/location-batch.dto';
+
+@Controller()
+export class LocationController {
+  constructor(private readonly locationService: LocationService) {}
+
+  @Post('location')
+  @HttpCode(HttpStatus.OK)
+  async sendLocation(
+    @Body(new ValidationPipe({ transform: true })) location: LocationDto,
+  ): Promise<{ success: boolean }> {
+    await this.locationService.createLocation(location);
+    return { success: true };
+  }
+
+  @Post('locations/batch')
+  @HttpCode(HttpStatus.OK)
+  async sendLocationsBatch(
+    @Body(new ValidationPipe({ transform: true })) batchDto: LocationBatchDto,
+  ): Promise<{ success: boolean }> {
+    await this.locationService.createLocationsBatch(batchDto.locations);
+    return { success: true };
+  }
+}
