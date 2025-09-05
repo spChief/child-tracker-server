@@ -156,6 +156,7 @@
                     map: null,
                     route: null,
                     markerCluster: null,
+                    individualMarkers: [],
                     isFirstLoad: true,
                     updateInterval: null
                 }
@@ -239,8 +240,12 @@
                 updateMap() {
                     if (!this.map || this.locations.length === 0) return;
 
-                    // Очищаем кластер и маршрут
+                    // Очищаем кластер, отдельные маркеры и маршрут
                     this.markerCluster.clearLayers();
+                    this.individualMarkers.forEach(marker => {
+                        this.map.removeLayer(marker);
+                    });
+                    this.individualMarkers = [];
                     if (this.route) {
                         this.map.removeLayer(this.route);
                     }
@@ -255,7 +260,7 @@
                         opacity: 0.8
                     }).addTo(this.map);
 
-                    // Создаем маркеры для всех точек и добавляем их в кластер
+                    // Создаем маркеры для всех точек
                     this.locations.forEach((location, index) => {
                         const lat = parseFloat(location.latitude);
                         const lng = parseFloat(location.longitude);
@@ -291,7 +296,14 @@
                         const marker = L.marker([lat, lng], { icon: markerIcon })
                             .bindPopup(popupText);
 
-                        this.markerCluster.addLayer(marker);
+                        if (index === this.locations.length - 1) {
+                            // Последняя точка добавляется отдельно, не в кластер
+                            this.map.addLayer(marker);
+                            this.individualMarkers.push(marker);
+                        } else {
+                            // Остальные точки добавляются в кластер
+                            this.markerCluster.addLayer(marker);
+                        }
                     });
 
                     // Устанавливаем границы карты только при первой загрузке
