@@ -63,6 +63,6 @@ export class LocationService {
       });
     }
 
-    return await queryBuilder.limit(1000).getMany();
+    return await queryBuilder.limit(500).getMany();
   }
 }

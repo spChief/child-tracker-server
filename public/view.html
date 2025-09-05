@@ -150,6 +150,7 @@
             data() {
                 return {
                     deviceId: null,
+                    showAll: null,
                     locations: [],
                     loading: false,
                     error: null,
@@ -163,6 +164,7 @@
             },
             mounted() {
                 this.getDeviceIdFromUrl();
+                this.getShowAllIdFromUrl();
                 if (this.deviceId) {
                     this.initMap();
                     this.loadData();
@@ -186,6 +188,11 @@
                     this.deviceId = urlParams.get('deviceId');
                 },
 
+                getShowAllIdFromUrl() {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    this.showAll = urlParams.get('all');
+                },
+
                 async loadData() {
                     if (!this.deviceId) return;
 
@@ -193,7 +200,7 @@
                     this.error = null;
 
                     try {
-                        const response = await fetch(`/view?deviceId=${this.deviceId}`);
+                        const response = await fetch(`/view?deviceId=${this.deviceId}&all=${this.showAll}`);
                         if (!response.ok) {
                             throw new Error(`HTTP error! status: ${response.status}`);
                         }
