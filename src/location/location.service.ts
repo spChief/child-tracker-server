@@ -46,7 +46,7 @@ export class LocationService {
     return await this.locationRepository
       .createQueryBuilder('location')
       .where('location.deviceId = :deviceId', { deviceId })
-      .orderBy('location.timestamp', 'ASC')
+      .orderBy('location.timestamp', 'DESC')
       .limit(1000)
       .getMany();
   }
