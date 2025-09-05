@@ -36,18 +36,33 @@ export class LocationService {
     return await this.locationRepository
       .createQueryBuilder('location')
       .where('location.deviceId = :deviceId', { deviceId })
-      .andWhere('location.timestamp >= :startDate', { startDate: startDate.getTime() })
-      .andWhere('location.timestamp <= :endDate', { endDate: endDate.getTime() })
+      .andWhere('location.timestamp >= :startDate', {
+        startDate: startDate.getTime(),
+      })
+      .andWhere('location.timestamp <= :endDate', {
+        endDate: endDate.getTime(),
+      })
       .orderBy('location.timestamp', 'DESC')
       .getMany();
   }
 
-  async getLocationsForView(deviceId: string): Promise<Location[]> {
-    return await this.locationRepository
+  async getLocationsForView(
+    deviceId: string,
+    showAll: boolean = false,
+  ): Promise<Location[]> {
+    const queryBuilder = this.locationRepository
       .createQueryBuilder('location')
       .where('location.deviceId = :deviceId', { deviceId })
-      .orderBy('location.timestamp', 'DESC')
-      .limit(1000)
-      .getMany();
+      .orderBy('location.timestamp', 'DESC');
+
+    // Если showAll = false, фильтруем по последним 12 часам
+    if (!showAll) {
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+      queryBuilder.andWhere('location.timestamp >= :twelveHoursAgo', {
+        twelveHoursAgo: twelveHoursAgo.getTime(),
+      });
+    }
+
+    return await queryBuilder.limit(1000).getMany();
   }
 }

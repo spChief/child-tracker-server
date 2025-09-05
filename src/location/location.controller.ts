@@ -15,7 +15,7 @@ import { LocationBatchDto } from '../dto/location-batch.dto';
 
 @Controller()
 export class LocationController {
-  constructor(private readonly locationService: LocationService) {}
+  constructor(private readonly locationService: LocationService) { }
 
   @Post('location')
   @HttpCode(HttpStatus.OK)
@@ -36,12 +36,19 @@ export class LocationController {
   }
 
   @Get('view')
-  async getViewData(@Query('deviceId') deviceId: string) {
+  async getViewData(
+    @Query('deviceId') deviceId: string,
+    @Query('all') all: string,
+  ) {
     if (!deviceId) {
       throw new BadRequestException('deviceId parameter is required');
     }
 
-    const locations = await this.locationService.getLocationsForView(deviceId);
+    const showAll = all === 'true' || all === '1';
+    const locations = await this.locationService.getLocationsForView(
+      deviceId,
+      showAll,
+    ).then((locations) => locations.reverse());
     return { locations };
   }
 }
