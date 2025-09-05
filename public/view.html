@@ -6,7 +6,10 @@
     <title>Просмотр локаций устройства</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
     <style>
         body {
             margin: 0;
@@ -64,6 +67,45 @@
             font-size: 14px;
             z-index: 2000;
         }
+
+        /* Стили для кластеров */
+        .marker-cluster-small {
+            background-color: rgba(181, 226, 140, 0.6);
+        }
+        .marker-cluster-small div {
+            background-color: rgba(110, 204, 57, 0.6);
+        }
+
+        .marker-cluster-medium {
+            background-color: rgba(241, 211, 87, 0.6);
+        }
+        .marker-cluster-medium div {
+            background-color: rgba(240, 194, 12, 0.6);
+        }
+
+        .marker-cluster-large {
+            background-color: rgba(253, 156, 115, 0.6);
+        }
+        .marker-cluster-large div {
+            background-color: rgba(241, 128, 23, 0.6);
+        }
+
+        .marker-cluster {
+            background-clip: padding-box;
+            border-radius: 20px;
+        }
+        .marker-cluster div {
+            width: 30px;
+            height: 30px;
+            margin-left: 5px;
+            margin-top: 5px;
+            text-align: center;
+            border-radius: 15px;
+            font: 12px "Helvetica Neue", Arial, Helvetica, sans-serif;
+        }
+        .marker-cluster span {
+            line-height: 30px;
+        }
     </style>
 </head>
 <body>
@@ -113,6 +155,7 @@
                     error: null,
                     map: null,
                     route: null,
+                    markerCluster: null,
                     isFirstLoad: true,
                     updateInterval: null
                 }
@@ -181,17 +224,26 @@
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     }).addTo(this.map);
+
+                    // Инициализируем кластер маркеров
+                    this.markerCluster = L.markerClusterGroup({
+                        chunkedLoading: true,
+                        maxClusterRadius: 50,
+                        spiderfyOnMaxZoom: true,
+                        showCoverageOnHover: false,
+                        zoomToBoundsOnClick: true
+                    });
+                    this.map.addLayer(this.markerCluster);
                 },
 
                 updateMap() {
                     if (!this.map || this.locations.length === 0) return;
 
-                    // Очищаем карту (удаляем все слои кроме базового тайла)
-                    this.map.eachLayer((layer) => {
-                        if (layer !== this.map._layers[Object.keys(this.map._layers)[0]]) {
-                            this.map.removeLayer(layer);
-                        }
-                    });
+                    // Очищаем кластер и маршрут
+                    this.markerCluster.clearLayers();
+                    if (this.route) {
+                        this.map.removeLayer(this.route);
+                    }
 
                     // Создаем массив координат для маршрута
                     const coordinates = this.locations.map(loc => [parseFloat(loc.latitude), parseFloat(loc.longitude)]);
@@ -203,27 +255,44 @@
                         opacity: 0.8
                     }).addTo(this.map);
 
-                    // Добавляем маркеры для первой и последней точки
-                    if (coordinates.length > 0) {
-                        const firstPoint = L.marker(coordinates[0], {
-                            icon: L.divIcon({
+                    // Создаем маркеры для всех точек и добавляем их в кластер
+                    this.locations.forEach((location, index) => {
+                        const lat = parseFloat(location.latitude);
+                        const lng = parseFloat(location.longitude);
+
+                        let markerIcon, popupText;
+
+                        if (index === 0) {
+                            // Первая точка - зеленая
+                            markerIcon = L.divIcon({
                                 className: 'custom-marker',
                                 html: '<div style="background-color: green; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
                                 iconSize: [16, 16]
-                            })
-                        }).bindPopup(`Начальная точка<br/>Время: ${this.formatDate(this.locations[0].timestamp)}`);
-
-                        const lastPoint = L.marker(coordinates[coordinates.length - 1], {
-                            icon: L.divIcon({
+                            });
+                            popupText = `Начальная точка<br/>Время: ${this.formatDate(location.timestamp)}`;
+                        } else if (index === this.locations.length - 1) {
+                            // Последняя точка - красная
+                            markerIcon = L.divIcon({
                                 className: 'custom-marker',
                                 html: '<div style="background-color: red; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
                                 iconSize: [16, 16]
-                            })
-                        }).bindPopup(`Конечная точка<br/>Время: ${this.formatDate(this.locations[this.locations.length - 1].timestamp)}`);
+                            });
+                            popupText = `Конечная точка<br/>Время: ${this.formatDate(location.timestamp)}`;
+                        } else {
+                            // Промежуточные точки - синие
+                            markerIcon = L.divIcon({
+                                className: 'custom-marker',
+                                html: '<div style="background-color: #3498db; width: 8px; height: 8px; border-radius: 50%; border: 2px solid white;"></div>',
+                                iconSize: [12, 12]
+                            });
+                            popupText = `Точка ${index + 1}<br/>Время: ${this.formatDate(location.timestamp)}`;
+                        }
 
-                        this.map.addLayer(firstPoint);
-                        this.map.addLayer(lastPoint);
-                    }
+                        const marker = L.marker([lat, lng], { icon: markerIcon })
+                            .bindPopup(popupText);
+
+                        this.markerCluster.addLayer(marker);
+                    });
 
                     // Устанавливаем границы карты только при первой загрузке
                     if (this.route && this.isFirstLoad) {
