@@ -58,11 +58,13 @@ export class LocationService {
     // Если showAll = false, фильтруем по последним 12 часам
     if (!showAll) {
       const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
-      queryBuilder.andWhere('location.timestamp >= :twelveHoursAgo', {
-        twelveHoursAgo: twelveHoursAgo.getTime(),
-      });
+      queryBuilder
+        .andWhere('location.timestamp >= :twelveHoursAgo', {
+          twelveHoursAgo: twelveHoursAgo.getTime(),
+        })
+        .limit(500);
     }
 
-    return await queryBuilder.limit(500).getMany();
+    return await queryBuilder.getMany();
   }
 }
