@@ -164,7 +164,7 @@
             <p v-if="deviceId">Устройство: {{ deviceId }}</p>
             <div class="controls">
                 <label class="checkbox-label">
-                    <input type="checkbox" v-model="showRoute" @change="updateMap">
+                    <input type="checkbox" v-model="showRoute" @change="onRouteToggle">
                     <span class="checkmark"></span>
                     Показать линию маршрута
                 </label>
@@ -216,7 +216,9 @@
                     individualMarkers: [],
                     isFirstLoad: true,
                     updateInterval: null,
-                    showRoute: false
+                    showRoute: false,
+                    previousLocations: [],
+                    previousShowRoute: false
                 }
             },
             mounted() {
@@ -262,12 +264,19 @@
                             throw new Error(`HTTP error! status: ${response.status}`);
                         }
                         const data = await response.json();
-                        this.locations = data.locations || [];
+                        const newLocations = data.locations || [];
 
-                        if (this.locations.length === 0) {
+                        if (newLocations.length === 0) {
                             this.error = 'Для данного устройства не найдено локаций';
                         } else {
-                            this.updateMap();
+                            // Проверяем, изменились ли данные
+                            if (this.hasLocationsChanged(newLocations, this.showRoute)) {
+                                this.locations = newLocations;
+                                this.updateMap();
+                                // Сохраняем текущие данные как предыдущие
+                                this.previousLocations = JSON.parse(JSON.stringify(newLocations));
+                                this.previousShowRoute = this.showRoute;
+                            }
                         }
                     } catch (err) {
                         this.error = `Ошибка загрузки данных: ${err.message}`;
@@ -334,7 +343,9 @@
                         let markerIcon, popupText;
 
                         if (index === 0) {
-                            // Первая точка - зеленая
+                            // Первая точка - зеленая (показывается только если маршрут включен)
+                            if (!this.showRoute) return; // Пропускаем первую точку если маршрут не показан
+
                             markerIcon = L.divIcon({
                                 className: 'custom-marker',
                                 html: '<div style="background-color: green; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;"></div>',
@@ -368,7 +379,7 @@
                             // Последняя точка добавляется отдельно, не в кластер
                             this.map.addLayer(marker);
                             this.individualMarkers.push(marker);
-                        } else if (this.showRoute || index === 0) {
+                        } else if (this.showRoute) {
                             // Первая точка и промежуточные (если маршрут показан) добавляются в кластер
                             this.markerCluster.addLayer(marker);
                         }
@@ -394,6 +405,40 @@
 
                 formatDate(timestamp) {
                     return new Date(parseInt(timestamp, 10)).toLocaleString('ru-RU');
+                },
+
+                hasLocationsChanged(newLocations, newShowRoute) {
+                    // Проверяем изменение состояния маршрута
+                    if (this.previousShowRoute !== newShowRoute) {
+                        return true;
+                    }
+
+                    // Проверяем изменение количества локаций
+                    if (this.previousLocations.length !== newLocations.length) {
+                        return true;
+                    }
+
+                    // Проверяем изменение каждой локации
+                    for (let i = 0; i < newLocations.length; i++) {
+                        const prev = this.previousLocations[i];
+                        const curr = newLocations[i];
+
+                        if (!prev ||
+                            prev.latitude !== curr.latitude ||
+                            prev.longitude !== curr.longitude ||
+                            prev.timestamp !== curr.timestamp) {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                },
+
+                onRouteToggle() {
+                    // При изменении состояния маршрута всегда обновляем карту
+                    this.updateMap();
+                    // Обновляем предыдущее состояние
+                    this.previousShowRoute = this.showRoute;
                 }
             }
         }).mount('#app');
